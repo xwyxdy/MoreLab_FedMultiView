@@ -22,14 +22,19 @@ def run_example_kmeans(ds, seed: int = 0, **_):
     """
     t0 = time.time()
 
-    # 1. 取数据：F 序展平，与平台像素索引一一对应
+    # ── 第 1 步：取数据 ────────────────────────────────────────────────
+    # ds.cubes[v] 是 (H, W, B_v) 的立方体；flatten_view(v, "F") 展平成 (N, B_v)。
+    # ⚠️ 必须是 F 序（列优先），这样第 i 行才对应平台上第 i 个像素。
+    #    用 numpy 默认的 C 序会让标签整体错位，指标掉到随机水平。
     views = [np.asarray(ds.flatten_view(v, "F"), dtype=np.float32)
              for v in range(ds.n_views)]
 
-    # 2. 拼接所有视图的特征
-    X = np.concatenate(views, axis=1)
+    # ── 第 2 步：拼成一个特征矩阵（这就是最朴素的“多视图”，只拼不融合）──
+    X = np.concatenate(views, axis=1)            # (N, ΣB_v)
 
-    # 3. k-means（固定种子——平台要求诚实读出协议，见 docs/协议与规范.md）
+    # ── 第 3 步：聚类，得到每像素一个标签 ──────────────────────────────
+    # 诚实读出协议：固定 random_state、n_init=10，只用 inertia 选初始化，
+    # 绝不用真值挑“ACC 最高的那一次”（见 docs/协议与规范.md 第三节）。
     labels = KMeans(n_clusters=ds.n_classes, n_init=10,
                     random_state=seed).fit_predict(X).astype(np.int32)
 

@@ -1,4 +1,4 @@
-# 遥感多视图聚类 · 统一测试平台
+﻿# 遥感多视图聚类 · 统一测试平台
 
 把各人的多视图聚类算法放到**同一批遥感数据**上、用**同一套指标**比较。
 独立可运行，不依赖任何外部项目。
@@ -23,13 +23,44 @@ python scripts/run_all.py --datasets Augsburg Berlin       # 只跑指定的几�
 python scripts/run_all.py --datasets Trento                # 只跑一个
 python scripts/run_all.py --methods my_algo                # 只跑指定算法（默认跑全部发现到的）
 python scripts/run_all.py --seeds 0 1 2                    # 多种子（默认只跑 seed=0）
+python scripts/run_all.py --federated                      # 除集中式外，再跑各方法的联邦式（视图划分）
 python scripts/run_all.py --list                           # 只看发现了哪些算法，不跑
 cat results/runs.jsonl                                     # 看结果
+```
+
+`--federated` 会额外发现并运行 `methods/` 里每个文件的 `run_<名>_federated(ds, part, seed)`，
+`part` 是视图划分（一个客户端 = 一个模态）。联邦结果会带上 `partition="view"`、`n_clients`、
+以及 `detail["comm_bytes"]`（通信量），与集中式记录分开落盘。
+
+OSMAGC 的无损性可单独验证（对比集中式/联邦式的 H 序列逐元素相同）：
+
+```bash
+python scripts/verify_osmagc.py --dataset Trento --seed 0 --max-iter 10
 ```
 
 默认三个数据集 = `Augsburg Trento Berlin`。
 
 结果**跑完一组就立刻追加**到 `results/runs.jsonl`，中途被打断不丢已完成的；重跑会自动跳过已完成的。
+
+## 出报告与像素图
+
+```bash
+# 1) 表格 + 统计图（读 runs.jsonl，不重跑）
+python scripts/make_report.py
+#    -> results/report/REPORT.md, main_table.csv, fig_*.png
+
+# 2) 像素图：先让 run_all 保存标签图，再渲染
+python scripts/run_all.py --datasets Trento --methods osmagc --seeds 0 \
+    --save-maps --force --log results/aux/maps_run.jsonl
+python scripts/plot_maps.py --dataset Trento --methods osmagc
+#    -> results/maps/Trento__osmagc__none__seed0.png
+
+# 3) 重新出报告（像素图会自动嵌入 REPORT.md）
+python scripts/make_report.py
+```
+
+`--force` 会忽略断点续跑、强制重跑；配合 `--save-maps` 时建议用独立 `--log`，
+避免向主结果 `runs.jsonl` 追加重复记录。
 
 ## 加自己的算法
 
@@ -58,12 +89,19 @@ def run_my_algo(ds, seed=0, **kwargs):
 
 ```
 common/     公共底座：数据 / 指标 / 划分 / 协议指纹 / 线程固定
-methods/    算法，一人一个文件（_template.py 是模板，example_kmeans.py 是示例）
-scripts/    run_all.py 跑批、selfcheck.py 整包自检、verify_threads.py 线程自检
+methods/    算法，一人一个文件（_template.py 是模板，example_kmeans.py 是示例，
+            osmagc.py / etap.py / samvgc.py 是集中式 + 联邦式遥感方法）
+scripts/    run_all.py 跑批、selfcheck.py 整包自检、verify_threads.py 线程自检、
+            verify_osmagc.py / verify_etap.py 联邦化无损验证、
+            make_report.py 自动报告、plot_maps.py 像素图
+vendor/     OSMAGC + ETAP + SAMVGC 的复现代码 + ERS 动态库（第三方，已打包）
 data/       三个数据集（Augsburg / Trento / Berlin），已打包
-results/    runs.jsonl 结果
-docs/       协议与规范.md ★ 所有人必读
+results/    runs.jsonl 主结果；verify_*.jsonl 验证；report/ 报告；maps/ 像素图；logs/ 日志
+docs/       协议与规范.md ★ 所有人必读；框架导读.md；各方法联邦化报告
 ```
+
+> ⚠️ OSMAGC / ETAP 方法依赖 `vendor/ext/ers/ers.dll`（ERS 超像素），**仅 Windows x64 / 64 位 Python** 可跑。
+> ETAP 复现见 `docs/ETAP联邦化实验报告.md`，无损验证 `python scripts/verify_etap.py --dataset Trento`。
 
 ## 数据集
 

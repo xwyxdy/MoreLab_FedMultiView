@@ -18,7 +18,7 @@
 - 范式 B：`view_idx=[i]`, `sample_idx=None`
 - 范式 A：`view_idx=[0..V-1]`, `sample_idx=<该区域像素>`
 
-⚠️ 与 OSMAGC 的兼容性（重要）
+与 OSMAGC 的兼容性（重要）
 ----------------------------
 OSMAGC 的空间正则需要在 **连通的 (H,W) 子栅格** 上构造差分算子。
 因此：
@@ -41,6 +41,12 @@ from .data import RSDataset
 # --------------------------------------------------------------------------- #
 @dataclass
 class Client:
+    """一个客户端持有什么。
+
+    两个字段就够表达两种联邦范式：
+      view_idx   : 持有哪些视图
+      sample_idx : 持有哪些像素；None = 全部像素
+    """
     client_id: int
     name: str
     view_idx: list[int]
@@ -59,7 +65,7 @@ class Partition:
     n_views: int
     n_pixels: int
     grid: tuple[int, int]                # (H, W)
-    stats: dict = field(default_factory=dict)
+    stats: dict = field(default_factory=dict) #非 IID 统计
 
     def __len__(self) -> int:
         return len(self.clients)
@@ -131,7 +137,9 @@ def analyze_partition(
 
     global_counts = _class_counts(gt, None, K)
     global_p = global_counts / max(global_counts.sum(), 1)
-
+    #范式A要说明 各类别数量；
+    # - JS 散度（0=IID，越大越非 IID）；
+    # - 缺了哪些类。
     js_list, miss_list = [], []
     for c in part.clients:
         cc = _class_counts(gt, c.sample_idx, K)
@@ -159,7 +167,12 @@ def analyze_partition(
 # 范式 B：视图划分
 # --------------------------------------------------------------------------- #
 def view_partition(ds: RSDataset) -> Partition:
-    """每个视图 = 一个客户端（纵向联邦）。"""
+    """每个视图 = 一个客户端（纵向联邦）。
+
+    这是遥感最真实的联邦场景：HS / SAR / LiDAR 由不同机构/卫星持有。
+    例：Trento → 2 个客户端（view:HS、view:LiDAR），每个都持有全部像素。
+    """
+    # 每个客户端：view_idx=[i]（只持一个视图），sample_idx=None（持有全部像素）
     clients = [
         Client(
             client_id=i,
@@ -301,7 +314,11 @@ def random_partition(
 
 
 def _check_covers_all(part: Partition, n_total: int) -> None:
-    """校验划分是「恰好一次」的覆盖，防止静默丢样本/重复样本。"""
+    """校验划分是「恰好一次」的覆盖，防止静默丢样本/重复样本。
+
+    视图划分不需要检查（每个客户端都持有全部像素，本来就会重叠）；
+    区域/随机划分必须满足：每个像素恰好属于一个客户端。
+    """
     if part.mode == "view":
         return
     seen = np.zeros(n_total, dtype=np.int8)

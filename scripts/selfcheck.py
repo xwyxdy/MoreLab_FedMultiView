@@ -133,6 +133,35 @@ def main() -> int:
     ms = discover_methods()
     print(f"    {PASS} 发现 {len(ms)} 个: {list(ms)}")
 
+    # ---- 9. ERS 动态库（OSMAGC/ETAP 方法依赖，仅 Windows x64）----
+    head("[8] ERS 动态库（OSMAGC/ETAP 依赖）")
+    dll = ROOT / "vendor" / "ext" / "ers" / "ers.dll"
+    if not dll.exists():
+        print(f"    {WARN} 缺 {dll.relative_to(ROOT)}，OSMAGC/ETAP 方法将不可用")
+    else:
+        try:
+            import ctypes
+            ctypes.CDLL(str(dll))                        # 只验证可加载，不跑分割
+            print(f"    {PASS} ers.dll 可加载（{dll.stat().st_size / 1e6:.1f} MB）")
+        except OSError as exc:
+            print(f"    {FAIL} ers.dll 加载失败：{exc}")
+            problems.append("ers.dll 加载失败（需 64 位 Python / Windows x64）")
+
+    # ---- 10. 可选依赖（按方法/脚本；缺了只 WARN，不影响其他方法）----
+    head("[9] 可选依赖（按方法/脚本）")
+    OPTIONAL = [
+        ("osqp", "ETAP（二次规划）"),
+        ("torch", "SAMVGC（GNN 训练）"),
+        ("skimage", "SAMVGC（SLIC 超像素）"),
+        ("matplotlib", "报告与像素图（make_report/plot_maps）"),
+    ]
+    for mod, purpose in OPTIONAL:
+        try:
+            __import__(mod)
+            print(f"    {PASS} {mod:<12}（{purpose}）")
+        except ImportError:
+            print(f"    {WARN} {mod:<12} 未安装 —— {purpose} 将不可用")
+
     # ---- 汇总 ----
     print("\n" + "=" * 70)
     if problems:

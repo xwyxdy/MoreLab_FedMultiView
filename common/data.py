@@ -39,11 +39,11 @@ DATA = Path(__file__).resolve().parents[1] / "data"
 @dataclass(frozen=True)
 class ViewSpec:
     path: Path
-    key: str | None = None          # None 表示取 .mat 里第一个非 header 变量
+    key: str | None = None          # None 表示取 .mat 里第一个非 header 变量 一个视图的规格
     name: str = ""
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True)  #一个数据集的规格
 class DatasetSpec:
     name: str
     views: tuple[ViewSpec, ...]
@@ -103,7 +103,7 @@ SPECS: dict[str, DatasetSpec] = {
 # --------------------------------------------------------------------------- #
 # 数据结构
 # --------------------------------------------------------------------------- #
-@dataclass
+@dataclass   #字段
 class RSDataset:
     name: str
     view_names: list[str]
@@ -135,7 +135,7 @@ class RSDataset:
     def view_dims(self) -> list[int]:
         return [int(c.shape[2]) for c in self.cubes]
 
-    # ---------------- 展平 ----------------
+    # ---------------- 展平方法 ----------------
     def flatten_view(self, v: int, order: str = "F") -> np.ndarray:
         """把第 v 个视图展平成 (N, B)。
 
@@ -156,7 +156,7 @@ class RSDataset:
             [rr.reshape(-1, order=order), cc.reshape(-1, order=order)], axis=1
         ).astype(np.int32)
 
-    # ---------------- 掩码 ----------------
+    # ---------------- 掩码方法 ----------------
     def labeled_mask(self, order: str = "F") -> np.ndarray:
         """参与评测的像素（gt > 0），形状 (N,) bool。"""
         return self.flatten_gt(order) > 0
@@ -191,7 +191,7 @@ class RSDataset:
     def missing_rate(self, v: int) -> float:
         return 1.0 - self.index[v].size / self.n_pixels if self.index is not None else 0.0
 
-    def summary(self) -> str:
+    def summary(self) -> str:  #打印一行结果
         dims = ", ".join(
             f"{n}({d})" for n, d in zip(self.view_names, self.view_dims())
         )
@@ -210,7 +210,7 @@ class RSDataset:
 # --------------------------------------------------------------------------- #
 # 加载
 # --------------------------------------------------------------------------- #
-def _read_mat(spec: ViewSpec) -> np.ndarray:
+def _read_mat(spec: ViewSpec) -> np.ndarray:  #
     if not spec.path.exists():
         raise FileNotFoundError(f"找不到数据文件：{spec.path}")
     d = sio.loadmat(spec.path)
@@ -237,7 +237,7 @@ def load_dataset(name: str, dtype=np.float32) -> RSDataset:
     spec = SPECS[name]
 
     cubes = []
-    for vs in spec.views:
+    for vs in spec.views:  # 逐视图读、转 float32、ascontiguousarray
         c = _read_mat(vs)
         cubes.append(np.ascontiguousarray(c.astype(dtype, copy=False)))
 
@@ -248,7 +248,7 @@ def load_dataset(name: str, dtype=np.float32) -> RSDataset:
 
     H, W = gt.shape
     for vs, c in zip(spec.views, cubes):
-        if c.shape[:2] != (H, W):
+        if c.shape[:2] != (H, W):# 检查每个视图的 (H,W) 与 gt 一致
             raise ValueError(
                 f"[{name}] 视图 {vs.name} 尺寸 {c.shape[:2]} 与真值 {(H, W)} 不一致"
             )
@@ -274,7 +274,7 @@ def _load_availability(spec: ViewSpec, n_views: int, N: int) -> list[np.ndarray]
     用于**有像素级缺失**的数据集：mask 文件里 `index` 是 (1, V) 的 MATLAB cell，
     每个元素是该视图**可用**像素的 1-based 列优先索引。
 
-    ⚠️ 本包当前三个数据集（Augsburg / Trento / Berlin）都是**完整**的，
+     本包当前三个数据集（Augsburg / Trento / Berlin）都是**完整**的，
     没有缺失，所以这段逻辑暂时用不上——保留它是为了以后接入带缺失的数据集
     （例如 MUUFL 的官方 0.5 缺失版本）时不用重写。
     """
@@ -306,7 +306,7 @@ def _load_availability(spec: ViewSpec, n_views: int, N: int) -> list[np.ndarray]
 # --------------------------------------------------------------------------- #
 def normalize_view(X: np.ndarray, mode: str = "zscore") -> np.ndarray:
     """对视图特征做逐列归一化。**返回新数组，不改动入参。**
-
+    它们只是给通用方法提供便利。
     mode
     ----
     'zscore' : (x - mean) / std          —— 通用联邦 MVC 的常用做法
