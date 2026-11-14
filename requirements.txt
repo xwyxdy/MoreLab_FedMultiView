@@ -1,6 +1,7 @@
 # 遥感多视图聚类统一测试平台 —— 依赖清单
 # 版本为本框架开发验证时所用；装了更新的版本一般也能跑。
 
+# ---- 核心（所有脚本都需要）----
 numpy==1.26.4
 scipy==1.13.1
 scikit-learn==1.5.1
@@ -9,6 +10,17 @@ scikit-learn==1.5.1
 # 没有它的话，已经加载的 BLAS 没法改线程数，结果不可复现
 threadpoolctl==3.5.0
 
-# 读取 .mat 数据文件
-# scipy.io 已够用；若遇到 v7.3 格式的 .mat 才需要 h5py
+# ---- 按方法/脚本需要（可选）----
+# ETAP：二次规划求解器（updateS）
+osqp==1.1.3
+
+# SAMVGC：PyTorch + SLIC 超像素
+# 有 NVIDIA GPU 时建议装 CUDA 版（见 pytorch.org）
+torch>=2.0
+scikit-image>=0.22
+
+# 自动报告与像素图（scripts/make_report.py / plot_maps.py）
+matplotlib>=3.8
+
+# 读取 .mat 数据文件：scipy.io 已够用；v7.3 格式才需要 h5py
 # h5py>=3.10

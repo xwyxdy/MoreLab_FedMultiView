@@ -30,21 +30,25 @@ DEFAULT_LOG = RESULTS_DIR / "runs.jsonl"
 # --------------------------------------------------------------------------- #
 @dataclass
 class RunResult:
-    # --- 协议指纹 ---
-    dataset: str
-    method: str
-    partition: str                 # 'view' / '2x2' / 'stripe4V' / 'random4'
-    partition_mode: str            # 'view' / 'region' / 'random'
-    n_clients: int
+    # ══════════════════════════════════════════════════════════════════════
+    # 一条记录 = 一次完整实验（数据集 × 方法 × 划分 × 种子）。
+    # 下面“协议指纹”这几项决定这个数字在什么条件下跑出来的；
+    # 比较两个数字前，先确认指纹一致，否则不可比。
+    # ══════════════════════════════════════════════════════════════════════
+    dataset: str                   # 数据集名
+    method: str                    # 方法名（methods/ 下的文件名）
+    partition: str                 # 'none'（集中式）/ 'view' / '2x2' / 'stripe4V' / 'random4'
+    partition_mode: str            # 'none' / 'view' / 'region' / 'random'
+    n_clients: int                 # 客户端数（集中式=1）
     eval_mask: str = "labeled"     # 'labeled'（gt>0）或 'all'
-    norm: str = "zscore"
-    seed: int = 0
+    norm: str = "zscore"           # 预处理口径：zscore / osmagc-specific / ...
+    seed: int = 0                  # 随机种子
     # BLAS/OpenMP 线程数。实测同配置换线程数能差 5.9 个 ACC 点，所以它和种子
     # 一样属于"协议指纹"——不记下来，半年后没人知道表里那个数字是怎么来的。
     # 全局由 common/threads.py 钉死，这里只做记录。
     blas_threads: int = -1
 
-    # --- 结果 ---
+    # --- 结果：统一由 common/metrics.py 计算，不采信方法自报的数字 ---
     ACC: float = float("nan")
     NMI: float = float("nan")
     ARI: float = float("nan")
@@ -52,10 +56,10 @@ class RunResult:
 
     # --- 元信息 ---
     status: str = "ok"             # 'ok' / 'error' / 'skip'
-    note: str = ""
+    note: str = ""                 # 失败时记错误信息
     runtime_s: float = float("nan")
     n_clusters: int = -1
-    extra: dict[str, Any] = field(default_factory=dict)
+    extra: dict[str, Any] = field(default_factory=dict)  # 方法自定义：超参 / comm_bytes / alpha...
     timestamp: str = ""
 
     def __post_init__(self) -> None:
@@ -65,7 +69,12 @@ class RunResult:
             self.blas_threads = THREADS
 
     def key(self) -> tuple:
-        """去重键：同一条协议只跑一次。"""
+        """去重键：同一条协议只跑一次。
+
+        注意 partition 和 norm 都在键里：
+        - 集中式 partition='none' 与联邦式 partition='view' 是两条独立记录；
+        - norm='zscore' 与 norm='osmagc-specific' 也不会互相跳过。
+        """
         return (self.dataset, self.method, self.partition, self.norm, self.seed)
 
     def line(self) -> str:
