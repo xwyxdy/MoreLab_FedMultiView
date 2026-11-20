@@ -7,8 +7,8 @@ env/
 .idea/
 
 # 数据文件（建议不要传原始数据，如果数据很小想传，可以删掉下面这行）
-data/
-results/
+/data/
+/results/
 
 # Python 缓存
 __pycache__/
