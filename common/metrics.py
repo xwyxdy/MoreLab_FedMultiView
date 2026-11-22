@@ -165,22 +165,60 @@ def purity(y_true, y_pred) -> float:
     return float(C.max(axis=1).sum() / C.sum())
 
 
+def fscore(y_true, y_pred) -> float:
+    """pairwise F-score：同类对 vs 同簇对的 F1（列联表精确算，O(K^2)）。"""
+    C = contingency(y_true, y_pred).astype(np.float64)
+    n_both = (C * (C - 1.0) / 2.0).sum()                            # 同类且同簇
+    a, b = C.sum(axis=1), C.sum(axis=0)                             # 簇边缘 / 类边缘
+    n_pred = (a * (a - 1.0) / 2.0).sum()
+    n_true = (b * (b - 1.0) / 2.0).sum()
+    p = n_both / n_pred if n_pred > 0 else 0.0
+    r = n_both / n_true if n_true > 0 else 0.0
+    return float(2.0 * p * r / (p + r)) if (p + r) > 0 else 0.0
+
+
+def kappa(y_true, y_pred) -> float:
+    """Cohen's Kappa（Hungarian 匹配后计算，等价遥感文献的 KAPPA）。"""
+    t = _as_int_labels(y_true)
+    p = best_map(t, y_pred)
+    # 置换后 pred 已落在真值类的编号空间里，但可能并未覆盖全部类别
+    # （预测簇数少于真值类数时必然如此）。此时不能直接用 contingency()——
+    # 它会把两侧各自稠密化，得到非方阵，`a * b` 无法广播。
+    # 故按两者公共的编号空间直接造方阵列联表。
+    K = int(max(t.max(), p.max())) + 1
+    C = np.bincount(p * K + t, minlength=K * K).reshape(K, K).astype(np.float64)
+    N = C.sum()
+    if N == 0:
+        return 0.0
+    po = np.trace(C) / N
+    pe = float((C.sum(axis=1) * C.sum(axis=0)).sum()) / (N * N)
+    if abs(1.0 - pe) < 1e-12:                    # 退化：单一类别
+        return 1.0 if abs(po - 1.0) < 1e-12 else 0.0
+    return float((po - pe) / (1.0 - pe))
+
+
 # --------------------------------------------------------------------------- #
 # 主入口
 # --------------------------------------------------------------------------- #
 def evaluate(y_true, y_pred) -> dict:
-    """一次返回四个指标。
+    """一次返回六个指标。
 
     Returns
     -------
     dict
-        `{'ACC': float, 'NMI': float, 'ARI': float, 'Purity': float}`，取值 [0,1]。
+        `{'ACC': float, 'NMI': float, 'ARI': float, 'Purity': float,
+        'Fscore': float, 'Kappa': float}`。
+
+        前四个（ACC / NMI / ARI / Purity）取值 [0,1]；
+        `Fscore` 为 [0,1] 的 pairwise F1；`Kappa` 为 [-1,1] 的 Cohen's Kappa。
     """
     return {
         "ACC": acc(y_true, y_pred),
         "NMI": nmi(y_true, y_pred),
         "ARI": ari(y_true, y_pred),
         "Purity": purity(y_true, y_pred),
+        "Fscore": fscore(y_true, y_pred),      # 新增
+        "Kappa": kappa(y_true, y_pred),        # 新增
     }
 
 
