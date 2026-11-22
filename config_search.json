@@ -1,0 +1,18 @@
+[
+  {
+    "target_algorithm": "osmagc",
+    "dataset": "Trento",
+    "param_pool": {
+      "lam": [0.1, 1.0, 10.0],
+      "gamma": [10.0, 100.0, 1000.0]
+    }
+  },
+  {
+    "target_algorithm": "etap",
+    "dataset": "Trento",
+    "param_pool": {
+      "p_value": [0.5, 0.8, 0.9],
+      "lam": [1e-6, 1e-4, 1e-2]
+    }
+  }
+]

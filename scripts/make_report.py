@@ -231,11 +231,38 @@ def write_tables(agg: dict, out_dir: Path) -> None:
     lines.append("![gap](fig_gap.png)")
     lines.append("")
 
+    # --- 插入网格搜索记录 ---
+    search_json = out_dir / "search_records.json"
+    if search_json.exists():
+        lines.append("## 五、超参数网格搜索")
+        lines.append("")
+        lines.append(
+            "> 由 `scripts/local_search.py` 自动生成。搜索使用坐标下降法，无监督评估指标为轮廓系数（Silhouette Score），最终评估指标为真实 ACC。")
+        lines.append("")
+
+        with open(search_json, "r", encoding="utf-8") as f:
+            search_records = json.load(f)
+
+        lines.append("| 数据集 | 算法 | 最优参数 | 搜索后 ACC |")
+        lines.append("|---|---|---|---:|")
+        for rec in search_records:
+            # 把参数字典格式化一下，比如 {'lam': 0.1, 'gamma': 10.0}
+            params_str = ", ".join(f"{k}={v}" for k, v in rec["best_params"].items())
+            lines.append(f"| {rec['dataset']} | {rec['algo']} | `{params_str}` | {rec['final_acc']:.4f} |")
+        lines.append("")
+
+        for rec in search_records:
+            lines.append(f"### {rec['algo']} on {rec['dataset']} 搜索轨迹")
+            lines.append("")
+            lines.append(f"![Search {rec['algo']}]({rec['fig_name']})")
+            lines.append("")
+            # --- 网格搜索代码块结束 ---
+
     # 像素图：如果 results/maps 下有 PNG，就嵌进来
     maps_dir = out_dir.parent / "maps"
     map_pngs = sorted(maps_dir.glob("*.png")) if maps_dir.exists() else []
     if map_pngs:
-        lines.append("## 五、像素图（GT vs 预测）")
+        lines.append("## 六、像素图（GT vs 预测）")
         lines.append("")
         lines.append("> 由 `run_all.py --save-maps` + `scripts/plot_maps.py` 生成。")
         lines.append("")
